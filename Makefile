@@ -1,96 +1,52 @@
-APP_NAME := idp-pong
-ROOT := $(realpath .)
-BUILD_DIR := $(ROOT)/build
-BIN_DIR := $(ROOT)/bin
+TARGET ?= idp-pong
 
-THIRD_PARTY_DIR := $(BUILD_DIR)/3rd-party
+DOCKER_IMAGE ?= wischner/sdcc-z80:latest
+WORKDIR := $(PWD)
+UID := $(shell id -u)
+GID := $(shell id -g)
+
+THIRD_PARTY_DIR := build/3rd-party
 UDEV_VERSION := v0.0.1
-UDEV_NAME := idp-udev-$(patsubst v%,%,$(UDEV_VERSION))
+UDEV_NAME := libidpudev-$(patsubst v%,%,$(UDEV_VERSION))
 UDEV_ARCHIVE := $(THIRD_PARTY_DIR)/$(UDEV_NAME).tar.gz
 UDEV_DIR := $(THIRD_PARTY_DIR)/$(UDEV_NAME)
 UDEV_FETCH_STAMP := $(UDEV_DIR)/.fetched-$(UDEV_VERSION)
-UDEV_BUILD_DIR := $(BUILD_DIR)/udev
-UDEV_BIN_DIR := $(BUILD_DIR)/udev-bin
-UDEV_LIB_STAMP := $(UDEV_BIN_DIR)/.built-$(UDEV_VERSION)
 
-PARTNER_BUILD_DIR := $(BUILD_DIR)/partner
-PARTNER_TARGET := $(BIN_DIR)/$(APP_NAME).com
-PARTNER_IHX := $(PARTNER_BUILD_DIR)/$(APP_NAME).ihx
-PARTNER_LINK := $(PARTNER_BUILD_DIR)/$(APP_NAME).link
+DOCKER_RUN = docker run --rm \
+	--user $(UID):$(GID) \
+	-v "$(WORKDIR):/work" -w /work \
+	$(DOCKER_IMAGE) env PATH=/opt/sdcc/bin:$$PATH
 
-COMMON_SRC := src/main.c src/game/game.c
-PARTNER_SRC := $(COMMON_SRC) src/platform/platform_partner.c
-PARTNER_OBJ := $(PARTNER_SRC:%.c=$(PARTNER_BUILD_DIR)/%.rel)
+all: $(TARGET)
 
-CRT0_SRC := $(UDEV_DIR)/src/ulibc/crt0.s
-CRT0_OBJ := $(PARTNER_BUILD_DIR)/crt0.rel
+$(TARGET): $(UDEV_FETCH_STAMP)
+	@echo "[host] building (inside docker) -> bin/$(TARGET).com"
+	@$(DOCKER_RUN) sh -c 'make -C src TARGET=$(TARGET) all'
 
-DOCKER ?= docker
-SDCC_IMAGE ?= wischner/sdcc-z80:latest
-HOST_UID := $(shell id -u)
-HOST_GID := $(shell id -g)
+build: $(TARGET)
 
-DOCKER_MAKE = $(DOCKER) run --rm \
-	-u $(HOST_UID):$(HOST_GID) \
-	-v $(ROOT):$(ROOT) \
-	-w $(ROOT) \
-	$(SDCC_IMAGE) \
-	make -C $(ROOT) partner-in-docker
-
-SDCC := sdcc
-AS := sdasz80
-LD := sdldz80
-OBJCOPY := sdobjcopy
-PARTNER_INC_DIRS := src $(UDEV_DIR)/include
-CFLAGS := --std-c11 -mz80 --debug --no-std-crt0 --nostdinc --nostdlib $(addprefix -I,$(PARTNER_INC_DIRS))
-ASFLAGS := -xlos -g
-LDFLAGS := -mz80 -Wl -y --code-loc 0x100 --no-std-crt0 --nostdinc --nostdlib \
-	$(addprefix -L,$(UDEV_BIN_DIR)) -lusdcc -lulibc -lugpx -p
-L2FIX := sed '/-b _DATA = 0x8000/d'
-
-all: partner
-
-partner: $(UDEV_FETCH_STAMP)
-	$(DOCKER_MAKE)
-
-fetch-udev: $(UDEV_FETCH_STAMP)
+rebuild:
+	@$(DOCKER_RUN) sh -c 'make -C src TARGET=$(TARGET) clean'
+	@$(MAKE) all
 
 clean:
-	rm -rf $(BUILD_DIR) $(BIN_DIR)
+	@echo "[host] removing ./build and ./bin"
+	@rm -rf build
+	@rm -rf bin
 
 docker-pull:
-	$(DOCKER) pull $(SDCC_IMAGE)
+	@echo "[host] pulling docker image $(DOCKER_IMAGE) ..."
+	@docker pull $(DOCKER_IMAGE)
+
+fetch-udev:
+	@$(MAKE) $(UDEV_FETCH_STAMP)
 
 $(UDEV_FETCH_STAMP):
-	@mkdir -p $(THIRD_PARTY_DIR)
+	@mkdir -p "$(THIRD_PARTY_DIR)"
 	@if [ ! -d "$(UDEV_DIR)" ]; then \
-		curl -L --max-time 120 -o $(UDEV_ARCHIVE) https://github.com/iskra-delta/idp-udev/archive/refs/tags/$(UDEV_VERSION).tar.gz; \
-		tar -xzf $(UDEV_ARCHIVE) -C $(THIRD_PARTY_DIR); \
+		curl -L --max-time 120 -o "$(UDEV_ARCHIVE)" "https://github.com/iskra-delta/idp-udev/releases/download/$(UDEV_VERSION)/$(UDEV_NAME).tar.gz"; \
+		tar -xzf "$(UDEV_ARCHIVE)" -C "$(THIRD_PARTY_DIR)"; \
 	fi
-	touch $@
+	@touch "$@"
 
-partner-in-docker: $(PARTNER_TARGET)
-
-$(UDEV_LIB_STAMP): $(UDEV_FETCH_STAMP)
-	$(MAKE) -C $(UDEV_DIR) IN_DOCKER=1 BUILD_DIR=$(UDEV_BUILD_DIR) BIN_DIR=$(UDEV_BIN_DIR)
-	touch $@
-
-$(CRT0_OBJ): $(CRT0_SRC) | $(UDEV_LIB_STAMP)
-	@mkdir -p $(dir $@)
-	$(AS) $(ASFLAGS) $@ $<
-
-$(PARTNER_BUILD_DIR)/%.rel: %.c | $(UDEV_LIB_STAMP)
-	@mkdir -p $(dir $@)
-	$(SDCC) -c -o $@ $< $(CFLAGS)
-
-$(PARTNER_IHX): $(CRT0_OBJ) $(PARTNER_OBJ) $(UDEV_LIB_STAMP)
-	@mkdir -p $(PARTNER_BUILD_DIR)
-	$(SDCC) $(LDFLAGS) -o $@ $(CRT0_OBJ) $(PARTNER_OBJ)
-	$(L2FIX) $(PARTNER_BUILD_DIR)/$(APP_NAME).lk > $(PARTNER_LINK)
-	$(LD) -nf $(PARTNER_LINK)
-
-$(PARTNER_TARGET): $(PARTNER_IHX)
-	@mkdir -p $(BIN_DIR)
-	$(OBJCOPY) -I ihex -O binary $(PARTNER_IHX) $@
-
-.PHONY: all partner fetch-udev clean docker-pull partner-in-docker
+.PHONY: all $(TARGET) build rebuild clean docker-pull fetch-udev
