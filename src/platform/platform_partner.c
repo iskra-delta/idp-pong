@@ -214,13 +214,8 @@ void platform_loop(void (*frame_fn)(int key, void *ctx),
                    int (*running_fn)(void *ctx),
                    void *ctx,
                    uint frame_delay_ms) {
-    if (!frame_fn || !running_fn) {
-        return;
-    }
-
-    while (running_fn(ctx)) {
-        frame_fn(platform_read_key(), ctx);
-        platform_present();
-        platform_delay(frame_delay_ms);
-    }
+    (void) frame_fn;
+    (void) running_fn;
+    (void) ctx;
+    (void) frame_delay_ms;
 }
