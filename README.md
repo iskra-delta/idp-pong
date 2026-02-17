@@ -1,21 +1,28 @@
 # idp-pong
 
-Atari-style Pong for Iskra Delta Partner constraints, rendered with SDL2.
+Atari-style Pong for Iskra Delta Partner constraints.
 
 ## Project layout
 
 - `src/game/` - platform-independent game logic (C99, integer-only fixed-point motion)
-- `src/platform/` - platform-dependent drawing/input/timing backend
+- `src/platform/` - Iskra Delta Partner backend (ugpx/idp-udev)
 - `src/main.c` - game wiring via `platform_loop(...)`
 
 ## Build
 
 ```bash
-make all
+make partner
 ```
 
-This creates `bin/idp-pong` and stores object files under `build/`.
-SDL2 development libraries are required (`libsdl2-dev` on Debian/Ubuntu).
+This creates `bin/idp-pong.com`, stores build artifacts under `build/`, and
+downloads `idp-udev` release `v0.0.1` under `build/3rd-party/`.
+
+Build runs in Docker using image `wischner/sdcc-z80:latest`.
+
+## Docker toolchain
+
+- Current image: `wischner/sdcc-z80:latest`
+- Planned next step: replace it with a dedicated Iskra Delta Partner image
 
 ## Controls
 

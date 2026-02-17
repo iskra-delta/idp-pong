@@ -469,13 +469,27 @@ static void draw_big_score(const struct GameState *g) {
     draw_big_digit(right_x + digit_w + gap, y, right_score % 10, seg_len, thick);
 }
 
+static int text_len(const char *text) {
+    int len = 0;
+
+    if (!text) {
+        return 0;
+    }
+
+    while (text[len] != '\0') {
+        ++len;
+    }
+
+    return len;
+}
+
 static int text_pixel_width(const char *text) {
-    int len = (int) strlen(text);
+    int len = text_len(text);
     return len * 6;
 }
 
 static int text2x_pixel_width(const char *text) {
-    int len = (int) strlen(text);
+    int len = text_len(text);
     return len * 12;
 }
 
