@@ -20,10 +20,12 @@ CFLAGS  := --std-c11 --code-loc 0x100 -I/opt/sdcc/share/sdcc/include/gpx -I$(PAR
 ASFLAGS := -xlos -g
 
 C_SRCS := $(wildcard $(SRC_DIR)/*.c) \
-	$(wildcard $(SRC_DIR)/game/*.c)
+	$(wildcard $(SRC_DIR)/engine/*.c) \
+	$(wildcard $(SRC_DIR)/glyphs/*.c)
 C_OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.rel,$(C_SRCS))
 S_SRCS := $(wildcard $(SRC_DIR)/*.s) \
-	$(wildcard $(SRC_DIR)/game/*.s)
+	$(wildcard $(SRC_DIR)/engine/*.s) \
+	$(wildcard $(SRC_DIR)/glyphs/*.s)
 S_OBJS := $(patsubst $(SRC_DIR)/%.s,$(BUILD_DIR)/%.rel,$(S_SRCS))
 
 IHX := $(OUT_BASE).ihx

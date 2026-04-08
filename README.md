@@ -1,12 +1,21 @@
 # idp-pong
 
-Pong for the Iskra Delta Partner graphics mode.
+`Namizni tenis` for the Iskra Delta Partner graphics mode.
+
+The game now has:
+
+- a vector splash screen with a boxed instruction panel
+- one-player mode against the computer
+- two-player mode on the same keyboard
+- a game-over screen with replay prompt
+- double-buffered gameplay with page flipping
 
 ## Project layout
 
-- `src/game/` - game rules, physics, and drawing helpers
-- `src/main.c` - Partner-specific loop, page flipping, and input polling
-- `src/Makefile` - SDCC build that links `ugpx` and `libpartner`
+- `src/engine/` - game state, physics, input handling, splash/game-over rendering, gameplay rendering
+- `src/glyphs/` - splash vector data and Partner font data
+- `src/main.c` - Partner-specific startup, page management, main loop, keyboard polling
+- `src/Makefile` - SDCC build inside the docker toolchain
 
 ## Build
 
@@ -14,36 +23,48 @@ Pong for the Iskra Delta Partner graphics mode.
 make
 ```
 
-This creates:
+This does the following:
 
-- `bin/ntenis.com`
-- `bin/ntenis.img`
-
-Build artifacts are stored under `build/`. The top-level `Makefile` now follows
-the same pattern as the `aids` asteroids project:
-
-- build `../libpartner` first
-- build this project inside `wischner/sdcc-z80-idp:latest`
-- package a bootable CP/M disk image with `cpmdisk`
+- builds `../libpartner`
+- builds this project inside `wischner/sdcc-z80-idp:latest`
+- links against `ugpx` and `libpartner`
+- creates `bin/ntenis.com`
+- creates `bin/ntenis.img`
 
 Useful targets:
 
-- `make` - build `ntenis.com` and `ntenis.img`
+- `make` - build the program and disk image
 - `make clean` - remove local build outputs
 - `make docker-pull` - pull the Partner toolchain image
 - `make fix-perms` - repair ownership if Docker created root-owned outputs
 
 ## Controls
 
-- `ENTER` / `SPACE`: start game or continue from game-over
-- `A` / `D`: switch mode in menu
-- `W` / `S`: left paddle
-- `I` / `K`: right paddle in two-player mode
-- `Q`: quit
+### Splash screen
+
+- `1`, `ENTER`, or `SPACE` - start one-player game against the computer
+- `2` - start two-player game
+- `Q` or `ESC` - quit
+
+### During game
+
+- `W` - left paddle up
+- `S` - left paddle down
+- `I` - right paddle up in two-player mode
+- `K` - right paddle down in two-player mode
+- `Q` or `ESC` - quit immediately
+
+The paddle motion accelerates with repeated presses in the same direction.
+
+### Game over
+
+- `D` - start a new match
+- `N`, `Q`, or `ESC` - exit
 
 ## Notes
 
-- Uses integer-only movement and collision logic.
-- Uses page flipping plus erase/redraw of only the moving objects during play.
-- Uses raw CP/M keyboard polling through `bdos(C_RAWIO, 0xFF)`, matching the
-  approach used in `aids`.
+- Resolution is `1024x512`.
+- The splash screen is drawn on the hidden page and then displayed at once.
+- Gameplay uses page flipping and redraws only the moving objects and score changes.
+- Input uses raw CP/M polling through `bdos(C_RAWIO, 0xFF)`.
+- The splash vector data and font live in code space, not copied into RAM data by startup.

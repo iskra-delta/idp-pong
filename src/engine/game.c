@@ -3,9 +3,54 @@
 #include <ugpx.h>
 #include <string.h>
 
+extern uint8_t idp8x16_font[];
+
+static char intro_header[] = "Pozdravljeni v igri Namizni tenis.";
+static char intro_key_1[] = "1";
+static char intro_key_space[] = "SPACE";
+static char intro_key_2[] = "2";
+static char intro_key_q[] = "Q";
+static char intro_key_esc[] = "ESC";
+static char intro_ali[] = " ali ";
+static char intro_dots[] = "...";
+static char intro_desc_pvc[] = "igro proti stroju";
+static char intro_desc_pvp[] = "igro proti drugemu igralcu";
+static char intro_desc_exit[] = "izhod";
+static char game_over_title[] = "IGRE JE KONEC.";
+static char game_over_win[] = "ZMAGAL SI.";
+static char game_over_lose[] = "IZGUBIL SI.";
+static char game_over_retry[] = "BI POSKUSIL ZNOVA (D/N)?";
+
+#define INTRO_BOX_W 560
+#define INTRO_BOX_H 118
+#define INTRO_BOX_OVERLAP 110
+#define INTRO_BOX_BORDER 5
+#define INTRO_TEXT_PAD_X 24
+#define INTRO_TEXT_PAD_Y 12
+#define INTRO_TEXT_DY 21
+#define INTRO_HEADER_EXTRA_GAP 4
+#define INTRO_TEXT_DOWN_SHIFT 8
+#define INTRO_DOTS_GAP 10
+#define INTRO_DESC_GAP 10
+
 static int16_t read_le_i16(const uint8_t *p) {
     uint16_t u = (uint16_t)p[0] | ((uint16_t)p[1] << 8);
     return (int16_t)u;
+}
+
+static void get_title_layout(const struct game_state *g, int *x_off, int *y_off, int *preview_w, int *preview_h) {
+    int w = (int)vector_width;
+    int h = (int)vector_height;
+    int x = (g->width - w) / 2;
+    int y = ((g->height - h) / 2) - 40;
+
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+
+    *x_off = x;
+    *y_off = y;
+    *preview_w = w;
+    *preview_h = h;
 }
 
 static void draw_title_vectors(const struct game_state *g) {
@@ -14,13 +59,12 @@ static void draw_title_vectors(const struct game_state *g) {
     const uint8_t *end = vector_data + vector_data_size;
     int16_t x = 0;
     int16_t y = 0;
-    int preview_w = (int)vector_width;
-    int preview_h = (int)vector_height;
-    int x_off = (g->width - preview_w) / 2;
-    int y_off = (g->height - preview_h) / 2;
+    int preview_w;
+    int preview_h;
+    int x_off;
+    int y_off;
 
-    if (x_off < 0) x_off = 0;
-    if (y_off < 0) y_off = 0;
+    get_title_layout(g, &x_off, &y_off, &preview_w, &preview_h);
 
     for (;;) {
         uint8_t b;
@@ -63,6 +107,218 @@ static void draw_title_vectors(const struct game_state *g) {
     }
 }
 
+static void draw_text_at(char *text, int x, int y) {
+    gputtext(idp8x16_font, text, (coord)x, (coord)y);
+}
+
+static void draw_text_bold_at(char *text, int x, int y) {
+    gputtext(idp8x16_font, text, (coord)x, (coord)y);
+    gputtext(idp8x16_font, text, (coord)(x + 1), (coord)y);
+}
+
+static int text_width(char *text) {
+    dim_t dim;
+    gmetext(idp8x16_font, text, &dim);
+    return (int)dim.w;
+}
+
+static int draw_text_flow_at(char *text, int x, int y) {
+    draw_text_at(text, x, y);
+    return x + text_width(text);
+}
+
+static int draw_text_bold_flow_at(char *text, int x, int y) {
+    draw_text_bold_at(text, x, y);
+    return x + text_width(text) + 1;
+}
+
+static int bold_text_width(char *text) {
+    return text_width(text) + 1;
+}
+
+static void draw_title_text(const struct game_state *g) {
+    rect_t r;
+    dim_t dim;
+    int box_x0;
+    int box_y0;
+    int box_x1;
+    int box_y1;
+    int header_x;
+    int key_x;
+    int dots_x;
+    int desc_x;
+    int y;
+    int key_w;
+    int dots_w;
+    int desc_w;
+    int content_w;
+    int line1_key_w;
+    int line2_key_w;
+    int line3_key_w;
+    int line1_desc_w;
+    int line2_desc_w;
+    int line3_desc_w;
+
+    box_x0 = (g->width - INTRO_BOX_W) / 2;
+    box_y0 = g->height - INTRO_BOX_H - 16;
+    box_x1 = box_x0 + INTRO_BOX_W;
+    box_y1 = box_y0 + INTRO_BOX_H;
+
+    if (box_y0 < 0)
+        box_y0 = 0;
+    box_y1 = box_y0 + INTRO_BOX_H;
+
+    gsetcolor(CO_BACK);
+    r.x0 = box_x0;
+    r.y0 = box_y0;
+    r.x1 = box_x1;
+    r.y1 = box_y1;
+    gfillrect(&r);
+
+    gsetcolor(CO_FORE);
+    gdrawrect(&r);
+    r.x0 += INTRO_BOX_BORDER;
+    r.y0 += INTRO_BOX_BORDER;
+    r.x1 -= INTRO_BOX_BORDER;
+    r.y1 -= INTRO_BOX_BORDER;
+    gdrawrect(&r);
+
+    gmetext(idp8x16_font, intro_header, &dim);
+    header_x = box_x0 + ((INTRO_BOX_W - (int)dim.w) / 2);
+
+    line1_key_w = bold_text_width(intro_key_1) + text_width(intro_ali) + bold_text_width(intro_key_space);
+    line2_key_w = bold_text_width(intro_key_2);
+    line3_key_w = bold_text_width(intro_key_q) + text_width(intro_ali) + bold_text_width(intro_key_esc);
+    key_w = line1_key_w;
+    if (line2_key_w > key_w)
+        key_w = line2_key_w;
+    if (line3_key_w > key_w)
+        key_w = line3_key_w;
+
+    dots_w = text_width(intro_dots);
+
+    line1_desc_w = text_width(intro_desc_pvc);
+    line2_desc_w = text_width(intro_desc_pvp);
+    line3_desc_w = text_width(intro_desc_exit);
+    desc_w = line1_desc_w;
+    if (line2_desc_w > desc_w)
+        desc_w = line2_desc_w;
+    if (line3_desc_w > desc_w)
+        desc_w = line3_desc_w;
+
+    content_w = key_w + INTRO_DOTS_GAP + dots_w + INTRO_DESC_GAP + desc_w;
+    key_x = box_x0 + ((INTRO_BOX_W - content_w) / 2);
+    dots_x = key_x + key_w + INTRO_DOTS_GAP;
+    desc_x = dots_x + dots_w + INTRO_DESC_GAP;
+    y = box_y0 + INTRO_TEXT_PAD_Y + INTRO_TEXT_DOWN_SHIFT;
+
+    draw_text_at(intro_header, header_x, y);
+    y += INTRO_TEXT_DY + INTRO_HEADER_EXTRA_GAP;
+
+    draw_text_bold_flow_at(intro_key_1, key_x, y);
+    draw_text_flow_at(intro_ali, key_x + bold_text_width(intro_key_1), y);
+    draw_text_bold_flow_at(intro_key_space, key_x + bold_text_width(intro_key_1) + text_width(intro_ali), y);
+    draw_text_at(intro_dots, dots_x, y);
+    draw_text_at(intro_desc_pvc, desc_x, y);
+    y += INTRO_TEXT_DY;
+
+    draw_text_bold_flow_at(intro_key_2, key_x, y);
+    draw_text_at(intro_dots, dots_x, y);
+    draw_text_at(intro_desc_pvp, desc_x, y);
+    y += INTRO_TEXT_DY;
+
+    draw_text_bold_flow_at(intro_key_q, key_x, y);
+    draw_text_flow_at(intro_ali, key_x + bold_text_width(intro_key_q), y);
+    draw_text_bold_flow_at(intro_key_esc, key_x + bold_text_width(intro_key_q) + text_width(intro_ali), y);
+    draw_text_at(intro_dots, dots_x, y);
+    draw_text_at(intro_desc_exit, desc_x, y);
+}
+
+static void draw_centered_text_box(const struct game_state *g, char *line1, char *line2, char *line3) {
+    dim_t dim1;
+    dim_t dim2;
+    dim_t dim3;
+    int max_w;
+    int line_h;
+    int line_gap;
+    int text_block_h;
+    int pad_x;
+    int pad_y;
+    int box_w;
+    int box_h;
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+    int text_x;
+    int text_y;
+    rect_t r;
+
+    gmetext(idp8x16_font, line1, &dim1);
+    gmetext(idp8x16_font, line2, &dim2);
+    gmetext(idp8x16_font, line3, &dim3);
+
+    max_w = (int)dim1.w;
+    if ((int)dim2.w > max_w)
+        max_w = (int)dim2.w;
+    if ((int)dim3.w > max_w)
+        max_w = (int)dim3.w;
+
+    line_h = (int)dim1.h;
+    if ((int)dim2.h > line_h)
+        line_h = (int)dim2.h;
+    if ((int)dim3.h > line_h)
+        line_h = (int)dim3.h;
+
+    line_gap = 10;
+    pad_x = 28;
+    pad_y = 20;
+    text_block_h = (3 * line_h) + (2 * line_gap);
+    box_w = max_w + (2 * pad_x);
+    box_h = text_block_h + (2 * pad_y);
+    x0 = (g->width - box_w) / 2;
+    y0 = (g->height - box_h) / 2;
+    x1 = x0 + box_w;
+    y1 = y0 + box_h;
+
+    gsetcolor(CO_BACK);
+    r.x0 = x0;
+    r.y0 = y0;
+    r.x1 = x1;
+    r.y1 = y1;
+    gfillrect(&r);
+
+    gsetcolor(CO_FORE);
+    gdrawrect(&r);
+    r.x0 += 5;
+    r.y0 += 5;
+    r.x1 -= 5;
+    r.y1 -= 5;
+    gdrawrect(&r);
+
+    text_y = y0 + ((box_h - text_block_h) / 2);
+
+    text_x = (g->width - (int)dim1.w) / 2;
+    draw_text_bold_at(line1, text_x, text_y);
+    text_y += line_h + line_gap;
+
+    text_x = (g->width - (int)dim2.w) / 2;
+    draw_text_bold_at(line2, text_x, text_y);
+    text_y += line_h + line_gap;
+
+    text_x = (g->width - (int)dim3.w) / 2;
+    draw_text_at(line3, text_x, text_y);
+}
+
+static void draw_game_over_screen(const struct game_state *g) {
+    draw_centered_text_box(
+        g,
+        game_over_title,
+        (g->winner == 1) ? game_over_win : game_over_lose,
+        game_over_retry
+    );
+}
+
 /* -------------------------------------------------------------------------
  * Game constants
  * ------------------------------------------------------------------------- */
@@ -81,13 +337,14 @@ static void draw_title_vectors(const struct game_state *g) {
 #define SCORE_Y 10
 #define SCORE_LEFT_X (PARTNER_SCORE_WIDTH / 8)
 #define SCORE_RIGHT_X (PARTNER_SCORE_WIDTH - (PARTNER_SCORE_WIDTH / 8) - SCORE_PAIR_W)
-#define PADDLE_SPEED_LOW 2
-#define PADDLE_SPEED_HIGH 3
+#define PADDLE_SPEED_LOW 5
+#define PADDLE_SPEED_MED 6
+#define PADDLE_SPEED_HIGH 7
 #define WIN_SCORE     9
 
-#define SERVE_SPEED   4
+#define SERVE_SPEED   9
 #define SPEED_STEP    1
-#define MAX_SPEED     8
+#define MAX_SPEED     18
 #define PARTNER_SCORE_WIDTH 1024
 
 /* -------------------------------------------------------------------------
@@ -149,7 +406,9 @@ static void set_paddle_motion(int16_t *vel, int dir) {
     }
 
     if (cur_dir == dir) {
-        if (speed < PADDLE_SPEED_HIGH)
+        if (speed < PADDLE_SPEED_MED)
+            *vel = (int16_t)(dir * PADDLE_SPEED_MED);
+        else if (speed < PADDLE_SPEED_HIGH)
             *vel = (int16_t)(dir * PADDLE_SPEED_HIGH);
         return;
     }
@@ -185,7 +444,7 @@ static void reset_ball(struct game_state *g, int toward_p2) {
     set_ball_velocity(g, toward_p2 ? 1 : -1, slice);
 }
 
-static void start_match(struct game_state *g) {
+static void start_match(struct game_state *g, int mode_pvc) {
     g->score1 = 0;
     g->score2 = 0;
     g->prev_score1 = -1;
@@ -196,6 +455,7 @@ static void start_match(struct game_state *g) {
     g->prev_paddle2_y = g->paddle2_y;
     g->paddle1_vel    = 0;
     g->paddle2_vel    = 0;
+    g->mode_pvc       = (int16_t)mode_pvc;
     g->winner         = 0;
     g->screen         = 1;
     reset_ball(g, 1);
@@ -225,23 +485,35 @@ void game_init(struct game_state *g, int width, int height) {
  * ------------------------------------------------------------------------- */
 
 void game_handle_key(struct game_state *g, int key) {
-    /* quit: Q, ESC */
-    if (key == 'q' || key == 'Q' || key == 27) {
-        g->quit = 1;
-        return;
-    }
-
     if (g->screen == 0) {
-        if (key == '\r' || key == '\n' || key == ' ') {
-            start_match(g);
+        if (key == 'q' || key == 'Q' || key == 27) {
+            g->quit = 1;
+            return;
+        }
+        if (key == '2') {
+            start_match(g, 0);
+            return;
+        }
+        if (key == '\r' || key == '\n' || key == ' ' || key == '1') {
+            start_match(g, 1);
         }
         return;
     }
 
     if (g->screen == 2) {
-        if (key == '\r' || key == '\n' || key == ' ') {
-            g->screen = 0;
+        if (key == 'd' || key == 'D') {
+            start_match(g, g->mode_pvc);
+            return;
         }
+        if (key == 'n' || key == 'N' || key == 'q' || key == 'Q' || key == 27) {
+            g->quit = 1;
+        }
+        return;
+    }
+
+    /* quit: Q, ESC */
+    if (key == 'q' || key == 'Q' || key == 27) {
+        g->quit = 1;
         return;
     }
 
@@ -274,7 +546,7 @@ static void update_ai(struct game_state *g) {
     int noise;
     int dead_zone = 3;
     int gap;
-    int step = 2;
+    int step = 5;
 
     g->rng = irand_next16((uint16_t)(g->rng + 0x3C6Du));
     seed   = (int)g->rng;
@@ -291,7 +563,7 @@ static void update_ai(struct game_state *g) {
     } else {
         if ((g->frame % 6) == 0) return;
         if (distance < (g->width / 3) && iabs(target - center) > (g->paddle_h / 4))
-            step = 3;
+            step = 6;
     }
 
     gap = target - center;
@@ -652,14 +924,15 @@ static void repaint_score(const struct game_state *g) {
  * ------------------------------------------------------------------------- */
 
 void game_render_full(struct game_state *g) {
-
-    gcls();
     gsetcolor(CO_FORE);
 
     if (g->screen == 0) {
         draw_title_vectors(g);
+        draw_title_text(g);
     } else if (g->screen == 1) {
         draw_playfield_static(g);
+    } else if (g->screen == 2) {
+        draw_game_over_screen(g);
     }
 }
 
