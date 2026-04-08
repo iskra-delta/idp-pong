@@ -1,46 +1,49 @@
 # idp-pong
 
-Atari-style Pong for Iskra Delta Partner constraints.
+Pong for the Iskra Delta Partner graphics mode.
 
 ## Project layout
 
-- `src/game/` - platform-independent game logic (C99, integer-only fixed-point motion)
-- `src/platform/` - Iskra Delta Partner backend (ugpx/idp-udev)
-- `src/main.c` - game wiring via `platform_loop(...)`
+- `src/game/` - game rules, physics, and drawing helpers
+- `src/main.c` - Partner-specific loop, page flipping, and input polling
+- `src/Makefile` - SDCC build that links `ugpx` and `libpartner`
 
 ## Build
 
 ```bash
-make partner
+make
 ```
 
-This creates `bin/idp-pong.com`, stores build artifacts under `build/`, and
-downloads `idp-udev` release `v0.0.1` under `build/3rd-party/`.
+This creates:
 
-Build runs in Docker using image `wischner/sdcc-z80:latest`.
+- `bin/ntenis.com`
+- `bin/ntenis.img`
 
-## Docker toolchain
+Build artifacts are stored under `build/`. The top-level `Makefile` now follows
+the same pattern as the `aids` asteroids project:
 
-- Current image: `wischner/sdcc-z80:latest`
-- Planned next step: replace it with a dedicated Iskra Delta Partner image
+- build `../libpartner` first
+- build this project inside `wischner/sdcc-z80-idp:latest`
+- package a bootable CP/M disk image with `cpmdisk`
+
+Useful targets:
+
+- `make` - build `ntenis.com` and `ntenis.img`
+- `make clean` - remove local build outputs
+- `make docker-pull` - pull the Partner toolchain image
+- `make fix-perms` - repair ownership if Docker created root-owned outputs
 
 ## Controls
 
 - `ENTER` / `SPACE`: start game or continue from game-over
-- `LEFT` / `RIGHT`: switch mode in menu (`PLAYER VS CPU` or `PLAYER VS PLAYER`)
+- `A` / `D`: switch mode in menu
 - `W` / `S`: left paddle
-- `UP` / `DOWN`: right paddle (in `PLAYER VS PLAYER` mode)
+- `I` / `K`: right paddle in two-player mode
 - `Q`: quit
 
-## Implemented limitations
+## Notes
 
-- Screen clear via `platform_cls`
-- Vector-only draw via `platform_draw_line`
-- Display size via `platform_display_width` / `platform_display_height`
-- Integer-only game math using 16-bit style state/velocities (no floating-point)
-- Text rendering via `platform_draw_text`
-- Foreground/background erase behavior via `platform_set_color(FORE/BACK)`
-- Keyboard input via `platform_read_key`
-- Variable ball speeds and bounce angles
-- Bounce influenced by paddle movement speed
-- Player vs computer mode
+- Uses integer-only movement and collision logic.
+- Uses page flipping plus erase/redraw of only the moving objects during play.
+- Uses raw CP/M keyboard polling through `bdos(C_RAWIO, 0xFF)`, matching the
+  approach used in `aids`.

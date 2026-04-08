@@ -1,52 +1,41 @@
-TARGET ?= idp-pong
+DOCKER_IMAGE ?= wischner/sdcc-z80-idp:latest
 
-DOCKER_IMAGE ?= wischner/sdcc-z80:latest
-WORKDIR := $(PWD)
-UID := $(shell id -u)
-GID := $(shell id -g)
-
-THIRD_PARTY_DIR := build/3rd-party
-UDEV_VERSION := v0.0.1
-UDEV_NAME := libidpudev-$(patsubst v%,%,$(UDEV_VERSION))
-UDEV_ARCHIVE := $(THIRD_PARTY_DIR)/$(UDEV_NAME).tar.gz
-UDEV_DIR := $(THIRD_PARTY_DIR)/$(UDEV_NAME)
-UDEV_FETCH_STAMP := $(UDEV_DIR)/.fetched-$(UDEV_VERSION)
+WORKDIR      := $(CURDIR)
+PROJECTS_DIR := $(abspath ..)
+PROJECT_NAME := $(notdir $(WORKDIR))
+UID          := $(shell id -u)
+GID          := $(shell id -g)
 
 DOCKER_RUN = docker run --rm \
 	--user $(UID):$(GID) \
-	-v "$(WORKDIR):/work" -w /work \
-	$(DOCKER_IMAGE) env PATH=/opt/sdcc/bin:$$PATH
+	-v "$(PROJECTS_DIR):/workspace" \
+	-w "/workspace/$(PROJECT_NAME)" \
+	$(DOCKER_IMAGE)
 
-all: $(TARGET)
+DOCKER_RUN_ROOT = docker run --rm \
+	-v "$(PROJECTS_DIR):/workspace" \
+	-w "/workspace/$(PROJECT_NAME)" \
+	$(DOCKER_IMAGE)
 
-$(TARGET): $(UDEV_FETCH_STAMP)
-	@echo "[host] building (inside docker) -> bin/$(TARGET).com"
-	@$(DOCKER_RUN) sh -c 'make -C src TARGET=$(TARGET) all'
-
-build: $(TARGET)
-
-rebuild:
-	@$(DOCKER_RUN) sh -c 'make -C src TARGET=$(TARGET) clean'
-	@$(MAKE) all
-
-clean:
-	@echo "[host] removing ./build and ./bin"
-	@rm -rf build
-	@rm -rf bin
+all:
+	@echo "[host] building libpartner dependency"
+	@$(MAKE) -C ../libpartner build
+	@echo "[host] building project inside docker"
+	@$(DOCKER_RUN) make -C src all
 
 docker-pull:
-	@echo "[host] pulling docker image $(DOCKER_IMAGE) ..."
-	@docker pull $(DOCKER_IMAGE)
+	@docker pull "$(DOCKER_IMAGE)"
 
-fetch-udev:
-	@$(MAKE) $(UDEV_FETCH_STAMP)
+fix-perms:
+	@echo "[host] fixing ownership of build and bin outputs"
+	@$(DOCKER_RUN_ROOT) sh -lc 'chown -R $(UID):$(GID) build bin 2>/dev/null || true'
 
-$(UDEV_FETCH_STAMP):
-	@mkdir -p "$(THIRD_PARTY_DIR)"
-	@if [ ! -d "$(UDEV_DIR)" ]; then \
-		curl -L --max-time 120 -o "$(UDEV_ARCHIVE)" "https://github.com/iskra-delta/idp-udev/releases/download/$(UDEV_VERSION)/$(UDEV_NAME).tar.gz"; \
-		tar -xzf "$(UDEV_ARCHIVE)" -C "$(THIRD_PARTY_DIR)"; \
+clean:
+	@echo "[host] removing build and bin outputs"
+	@rm -rf build bin 2>/dev/null || true
+	@if [ -e build ] || [ -e bin ]; then \
+		echo "[host] retrying cleanup through docker as root"; \
+		$(DOCKER_RUN_ROOT) sh -lc 'rm -rf build bin'; \
 	fi
-	@touch "$@"
 
-.PHONY: all $(TARGET) build rebuild clean docker-pull fetch-udev
+.PHONY: all clean docker-pull fix-perms
