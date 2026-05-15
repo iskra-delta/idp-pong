@@ -25,9 +25,9 @@ make
 
 This does the following:
 
-- downloads and extracts the latest `iskra-delta/idp-sdk` release into `.deps/idp-sdk/`
 - builds this project inside `wischner/sdcc-z80-idp:latest`
-- links with the SDK runtime (`crt0cpm3-z80.rel`, `libsdk.lib`, `libcpm3-z80.lib`, `libsdcc-z80.lib`) plus `ugpx`
+- relies on the toolchain image's built-in Partner CRT, SDK headers, and default SDCC libraries
+- links only `ugpx.lib` explicitly
 - creates `bin/ntenis.com`
 - creates `bin/ntenis.img`
 
